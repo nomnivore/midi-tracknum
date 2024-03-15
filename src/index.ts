@@ -1,45 +1,33 @@
 import fs from "fs";
-import path from "path";
-import { parseMidi } from "midi-file";
+import inquirer from "inquirer";
+import { renameFilesInDir } from "./renamer.js";
 
-const dir = "./files";
+const answers = await inquirer.prompt<{ path: string; confirm: boolean }>([
+  {
+    name: "path",
+    message: "Enter the path to the directory your MIDI files are in:\n> ",
+    type: "input",
+    validate: (input: string) => {
+      if (input === "") return "Please enter a path";
 
-function getFilenames(dir: string) {
-  return fs.readdirSync(dir, { withFileTypes: true });
-}
+      if (!fs.existsSync(input)) return "Path does not exist";
 
-function numTracks(data: Buffer) {
-  const midi = parseMidi(data);
+      return true;
+    },
+  },
+  {
+    name: "confirm",
+    message:
+      "Are you sure you want to rename the MIDI files in this directory?",
+    type: "confirm",
+    default: false,
+  },
+]);
 
-  return midi.tracks.length - 1;
-}
+renameFilesInDir(answers.path);
 
-export function renameFilesInDir(dir: string) {
-  const files = getFilenames(dir);
-  files.forEach((file) => {
-    if (file.isDirectory()) {
-      // TODO: consider a depth limit
-      return renameFilesInDir(path.join(dir, file.name));
-    }
-
-    if (!file.name.endsWith(".mid")) return;
-
-    const data = fs.readFileSync(path.join(dir, file.name));
-
-    // check if file name starts with '# - ' where # is the number of tracks
-    const tracks = numTracks(data);
-    const prefix = `${tracks} - `;
-    if (file.name.startsWith(prefix)) return;
-
-    // rename file
-    const newFilename = `${prefix}${file.name}`;
-    try {
-      fs.renameSync(path.join(dir, file.name), path.join(dir, newFilename));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      console.log(`Error renaming file: ${file.name}\n\t${e}`);
-    }
-  });
-}
-
-renameFilesInDir(dir);
+// wait for any key to exit
+process.stdout.write("\nPress any key to exit...");
+process.stdin.setRawMode(true);
+process.stdin.resume();
+process.stdin.on("data", process.exit.bind(process, 0));
